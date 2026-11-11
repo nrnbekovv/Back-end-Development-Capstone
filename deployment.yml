@@ -1,29 +1,67 @@
-apiVersion: apps/v1
-kind: # {insert kind here}
+apiVersion: v1
+kind: PersistentVolumeClaim
 metadata:
+  name: django-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: djangoserver
   labels:
     run: djangoserver
-  name: djangoserver
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       run: djangoserver
-  strategy:
-    rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
-    type: RollingUpdate
   template:
     metadata:
       labels:
         run: djangoserver
     spec:
       containers:
-      - image: # {insert image here}
-        imagePullPolicy: Always
-        name: djangoserver
-        ports:
-        - containerPort: # {insert port here}
-          protocol: TCP
-      restartPolicy: Always
+        - name: djangoserver
+          image: us.icr.io/sn-labs-fieriertapes/djangoserver:1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: django-config
+            - secretRef:
+                name: django-secret
+          env:
+            - name: DJANGO_DB_PATH
+              value: /data/db.sqlite3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: django-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: djangoserver
+spec:
+  selector:
+    run: djangoserver
+  ports:
+    - port: 8000
+      targetPort: 8000

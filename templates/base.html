@@ -74,9 +74,7 @@
               >
             </li>
             <li>
-              <a class="nav-link scrollto o" href="{% url 'logout' %}"
-                >Logout</a
-              >
+              <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-link nav-link" type="submit">Logout</button></form>
             </li>
             {% endif%}
           </ul>
@@ -88,7 +86,7 @@
 
     <main id="main">
       <div class="container mt-3">
-        <section>{% block content %} {% endblock %}</section>
+        <section>{% if service_error %}<div class="alert alert-warning">{{ service_error }}</div>{% endif %}{% block content %} {% endblock %}</section>
       </div>
     </main>
 

@@ -1,75 +1,72 @@
+import requests
+from django.conf import settings
 from django.contrib.auth import login, logout
-from django.contrib.auth.models import User
-from django.http import HttpResponseRedirect, HttpResponse
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
-from django.urls import reverse
-from django.contrib.auth.hashers import make_password
-
-from concert.forms import LoginForm, SignUpForm
-from concert.models import Concert, ConcertAttending
-import requests as req
-
-
-# Create your views here.
-
-def signup(request):
-    pass
-
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST
+from django.http import HttpResponseBadRequest
+from .forms import LoginForm, SignUpForm
+from .models import Concert, ConcertAttending
 
 def index(request):
-    return render(request, "index.html")
+    return render(request,'index.html')
 
-
-def songs(request):
-    # songs = {"songs":[]}
-    # return render(request, "songs.html", {"songs": [insert list here]})
-    pass
-
-
-def photos(request):
-    # photos = []
-    # return render(request, "photos.html", {"photos": photos})
-    pass
+def signup(request):
+    form=SignUpForm(request.POST or None)
+    if request.method=='POST' and form.is_valid():
+        login(request,form.save())
+        return redirect('index')
+    return render(request,'signup.html',{'form':form})
 
 def login_view(request):
-    pass
+    form=LoginForm(request,data=request.POST or None)
+    if request.method=='POST' and form.is_valid():
+        login(request,form.get_user())
+        return redirect('index')
+    return render(request,'login.html',{'form':form})
 
+@require_POST
 def logout_view(request):
-    pass
+    logout(request)
+    return redirect('index')
 
+def service_data(url):
+    response=requests.get(url,timeout=15)
+    response.raise_for_status()
+    return response.json()
+
+def songs(request):
+    try:
+        data=service_data(settings.SONGS_URL.rstrip('/')+'/song')['songs']
+    except (requests.RequestException,ValueError,KeyError):
+        return render(request,'songs.html',{'service_error':'Songs are temporarily unavailable. Please try again.'},status=503)
+    return render(request,'songs.html',{'songs':data})
+
+def photos(request):
+    try:
+        data=service_data(settings.PICTURES_URL.rstrip('/')+'/picture')
+    except (requests.RequestException,ValueError):
+        return render(request,'photos.html',{'service_error':'Photos are temporarily unavailable. Please try again.'},status=503)
+    return render(request,'photos.html',{'photos':data})
+
+@login_required
 def concerts(request):
-    pass
+    statuses=dict(ConcertAttending.objects.filter(user=request.user).values_list('concert_id','attending'))
+    rows=[{'concert':concert,'status':statuses.get(concert.pk,'-')} for concert in Concert.objects.order_by('date')]
+    return render(request,'concerts.html',{'concerts':rows})
 
+@login_required
+def concert_detail(request,id):
+    concert=get_object_or_404(Concert,pk=id)
+    attending=concert.attendee.filter(user=request.user).first()
+    return render(request,'concert_detail.html',{'concert_details':concert,'status':attending.attending if attending else '-','attending_choices':ConcertAttending.AttendingChoices.choices})
 
-def concert_detail(request, id):
-    if request.user.is_authenticated:
-        obj = Concert.objects.get(pk=id)
-        try:
-            status = obj.attendee.filter(user=request.user).first().attending
-        except:
-            status = "-"
-        return render(request, "concert_detail.html", {"concert_details": obj, "status": status, "attending_choices": ConcertAttending.AttendingChoices.choices})
-    else:
-        return HttpResponseRedirect(reverse("login"))
-    pass
-
-
+@login_required
+@require_POST
 def concert_attendee(request):
-    if request.user.is_authenticated:
-        if request.method == "POST":
-            concert_id = request.POST.get("concert_id")
-            attendee_status = request.POST.get("attendee_choice")
-            concert_attendee_object = ConcertAttending.objects.filter(
-                concert_id=concert_id, user=request.user).first()
-            if concert_attendee_object:
-                concert_attendee_object.attending = attendee_status
-                concert_attendee_object.save()
-            else:
-                ConcertAttending.objects.create(concert_id=concert_id,
-                                                user=request.user,
-                                                attending=attendee_status)
-
-        return HttpResponseRedirect(reverse("concerts"))
-    else:
-        return HttpResponseRedirect(reverse("index"))
+    concert=get_object_or_404(Concert,pk=request.POST.get('concert_id'))
+    choice=request.POST.get('attendee_choice')
+    if choice not in ConcertAttending.AttendingChoices.values:
+        return HttpResponseBadRequest('Invalid RSVP choice')
+    ConcertAttending.objects.update_or_create(concert=concert,user=request.user,defaults={'attending':choice})
+    return redirect('concerts')
