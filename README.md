@@ -18,7 +18,7 @@ python manage.py runserver
 Set DJANGO_SECRET_KEY to a unique secret in deployments. Configure DJANGO_ALLOWED_HOSTS (comma-separated host names) and DJANGO_CSRF_TRUSTED_ORIGINS (comma-separated HTTPS origins). DJANGO_DEBUG defaults to off. DJANGO_DB_PATH optionally selects a persistent SQLite file.
 
 ### Deployment
-Docker runs Gunicorn on port 8000 and WhiteNoise serves static assets. The entrypoint applies migrations and seeds the sample concert schedule idempotently. Kubernetes manifests use a persistent volume and a Secret supplied at deploy time, never a committed password. This lab deployment uses one replica with SQLite.
+Docker runs Gunicorn on port 8000 and WhiteNoise serves static assets. The entrypoint applies migrations and seeds the sample concert schedule idempotently. Kubernetes manifests use an emptyDir volume because this Skills Network namespace has a zero PVC quota, and a Secret supplied at deploy time, never a committed password. This lab deployment uses one replica with SQLite; users and RSVPs reset when the pod is replaced. Use a persistent database for production.
 
 ### Related repositories
 - https://github.com/nrnbekovv/Back-End-Development-Pictures
@@ -26,3 +26,4 @@ Docker runs Gunicorn on port 8000 and WhiteNoise serves static assets. The entry
 
 ### Validation
 `python manage.py test` checks login, authentication boundaries and RSVP persistence. The original UI assets and templates are retained from the IBM starter.
+

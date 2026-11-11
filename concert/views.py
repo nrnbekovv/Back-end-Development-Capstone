@@ -45,6 +45,8 @@ def songs(request):
 def photos(request):
     try:
         data=service_data(settings.PICTURES_URL.rstrip('/')+'/picture')
+        for photo in data:
+            photo['pic_url'] = photo.get('pic_url', '').replace('http://dummyimage.com/', 'https://dummyimage.com/')
     except (requests.RequestException,ValueError):
         return render(request,'photos.html',{'service_error':'Photos are temporarily unavailable. Please try again.'},status=503)
     return render(request,'photos.html',{'photos':data})
