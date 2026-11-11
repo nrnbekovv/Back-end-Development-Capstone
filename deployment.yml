@@ -20,7 +20,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: djangoserver
-          image: us.icr.io/sn-labs-fieriertapes/djangoserver:1
+          image: us.icr.io/sn-labs-fieriertapes/djangoserver:2
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -56,3 +56,4 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
+
